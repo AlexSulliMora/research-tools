@@ -45,10 +45,11 @@ Estimate with pyfixest directly, so every estimate comes from pyfixest, and pass
 `paper_layout`:
 
 ```python
+import polars as pl
 import pyfixest as pf
 from research_tools import regressions
 
-sample = regressions.winsorize(sample, ['roa', 'size'])
+sample = sample.with_columns(pl.col('roa', 'size').pipe(regressions.winsorize, 0.01))
 fits = [
     pf.feols('roa ~ size', data=sample, vcov={'CRV1': 'gvkey + year'}),
     pf.feols('roa ~ size + lev', data=sample, vcov={'CRV1': 'gvkey + year'}),
