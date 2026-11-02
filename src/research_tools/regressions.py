@@ -1,21 +1,13 @@
 """
-OLS regressions with pyfixest, and their results as a table in the layout of finance and accounting papers.
+Winsorizing, and pyfixest models as a table in the layout of finance and accounting papers. This module
+estimates nothing: fit each model with pyfixest yourself (`pf.feols(...)`) and pass the fitted models here.
 
     winsorize(sample, columns)     each column clipped at its 1st and 99th percentiles in the sample
-    ModelResult                    one model's coefficients, standard errors, t-statistics, p-values,
-                                   adjusted R2 and number of observations
-    estimate(sample, ...)          one OLS regression with pyfixest, standard errors clustered two ways
-    paper_layout(models, ...)      the models as papers print them: a coefficient with stars, the
-                                   t-statistic on the row below, then adjusted R2 and Nobs
-
-pyfixest returns its results as pandas objects; they are read only to fill ModelResult with Python
-numbers, and no data pass through pandas.
+    paper_layout(fits, ...)        fitted pyfixest models as papers print them: a coefficient with stars,
+                                   the t-statistic on the row below, then adjusted R2 and Nobs
 """
 
-from dataclasses import dataclass
-
 import polars as pl
-import pyfixest as pf
 
 MINUS = '−'   # negative numbers are printed with a minus sign, not a hyphen
 
@@ -40,66 +32,6 @@ def winsorize(
     )
 
 
-@dataclass
-class ModelResult:
-    """One estimated model, with the numbers a regression table prints."""
-    name: str
-    dependent: str
-    coefficients: dict[str, float]
-    standard_errors: dict[str, float]
-    t_statistics: dict[str, float]
-    p_values: dict[str, float]
-    adjusted_r2: float
-    nobs: int
-
-
-def estimate(
-    sample: pl.DataFrame,
-    dependent: str,
-    regressors: list[str],
-    name: str,
-    clusters: tuple[str, ...] = ('gvkey', 'year'),
-) -> ModelResult:
-    """
-    OLS of `dependent` on an intercept and `regressors`, with standard errors clustered by each of
-    `clusters` (by default two-way, by firm and by calendar year, following Gow et al. 2012) and
-    pyfixest's default small-sample adjustment. The estimation sample is decided here, in Polars: the rows
-    of `sample` with every model variable finite. The model's number of observations is checked against it.
-    """
-    variables = [dependent, *regressors]
-    model_sample = sample.filter(
-        pl.all_horizontal(
-            pl.col(variable).cast(pl.Float64).is_finite().fill_null(False) for variable in variables
-        ),
-        pl.all_horizontal(pl.col(cluster).is_not_null() for cluster in clusters),
-    )
-    fit = pf.feols(
-        f'{dependent} ~ {" + ".join(regressors)}',
-        data=model_sample,
-        vcov={'CRV1': ' + '.join(clusters)},
-    )
-    # pyfixest 0.60 has no public accessor for the number of observations or the adjusted R2; they are read
-    # from its attributes _N and _adj_r2
-    if fit._N != model_sample.height:
-        raise ValueError(
-            f'{name}: the model used {fit._N:,} observations of the {model_sample.height:,} passed'
-        )
-
-    def as_dict(series) -> dict[str, float]:
-        return {str(key): float(value) for key, value in series.items()}
-
-    return ModelResult(
-        name=name,
-        dependent=dependent,
-        coefficients=as_dict(fit.coef()),
-        standard_errors=as_dict(fit.se()),
-        t_statistics=as_dict(fit.tstat()),
-        p_values=as_dict(fit.pvalue()),
-        adjusted_r2=float(fit._adj_r2),
-        nobs=int(fit._N),
-    )
-
-
 def printed_number(value: float, decimals: int) -> str:
     """A number as a paper prints it: fixed decimals, with a minus sign for negative numbers."""
     return f'{value:.{decimals}f}'.replace('-', MINUS)
@@ -111,37 +43,40 @@ def stars(p_value: float) -> str:
 
 
 def paper_layout(
-    models: list[ModelResult],
+    fits: list,
     row_labels: dict[str, str],
     column_labels: list[str],
     dependent_labels: dict[str, str] | None = None,
 ) -> pl.DataFrame:
     """
-    The models as papers print regression tables: one column per model (`column_labels`), and for
-    each regressor in `row_labels` (pyfixest's name -> printed label, in the order to print) a row with the
-    coefficient (three decimals and stars) and a row below it, with an empty label, with the t-statistic
-    (two decimals); then adjusted R2 (a percentage, two decimals) and Nobs. A regressor not in a model
-    leaves its cells empty. With `dependent_labels` (dependent variable -> label), a first row names each
-    model's dependent variable.
+    Fitted pyfixest models (`pf.feols(...)`) as papers print regression tables: one column per model
+    (`column_labels`), and for each regressor in `row_labels` (pyfixest's name -> printed label, in the order
+    to print) a row with the coefficient (three decimals and stars) and a row below it, with an empty label,
+    with the t-statistic (two decimals); then adjusted R2 (a percentage, two decimals) and Nobs. A regressor
+    not in a model leaves its cells empty. With `dependent_labels` (dependent variable -> label), a first row
+    names each model's dependent variable. Every number comes from pyfixest's `tidy()` and the fitted model.
     """
+    # pyfixest 0.60 has no public accessor for the dependent variable, the number of observations or
+    # the adjusted R2; they are read from its attributes _depvar, _N and _adj_r2
+    tidies = [fit.tidy() for fit in fits]
     rows = []
     if dependent_labels:
-        rows.append(('Dependent variable', [dependent_labels[model.dependent] for model in models]))
+        rows.append(('Dependent variable', [dependent_labels[fit._depvar] for fit in fits]))
     for variable, label in row_labels.items():
         coefficients, t_statistics = [], []
-        for model in models:
-            if variable in model.coefficients:
+        for tidy in tidies:
+            if variable in tidy.index:
                 coefficients.append(
-                    printed_number(model.coefficients[variable], 3) + stars(model.p_values[variable])
+                    printed_number(tidy.at[variable, 'Estimate'], 3) + stars(tidy.at[variable, 'Pr(>|t|)'])
                 )
-                t_statistics.append(printed_number(model.t_statistics[variable], 2))
+                t_statistics.append(printed_number(tidy.at[variable, 't value'], 2))
             else:
                 coefficients.append('')
                 t_statistics.append('')
         rows.append((label, coefficients))
         rows.append(('', t_statistics))
-    rows.append(('Adj R2', [printed_number(100 * model.adjusted_r2, 2) + '%' for model in models]))
-    rows.append(('Nobs', [f'{model.nobs:,}' for model in models]))
+    rows.append(('Adj R2', [printed_number(100 * fit._adj_r2, 2) + '%' for fit in fits]))
+    rows.append(('Nobs', [f'{fit._N:,}' for fit in fits]))
     return rows_to_table(rows, column_labels)
 
 

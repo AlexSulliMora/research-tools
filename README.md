@@ -7,7 +7,7 @@ it needs:
 |---|---|
 | `research_tools.wrds_db` | Reads WRDS's PostgreSQL database into Polars over one connection (one two-factor push), with types from the database, in batches written straight to Parquet. `pull_tables(queries, folder)` pulls every missing file, and only connects when one is missing. |
 | `research_tools.tables` | Tables and charts for Quarto documents, in HTML and PDF (Typst): `show(df)`, spanning headers (`'Spanner \| Label'` column names), frozen headers and labels, hover definitions (`DEFINITIONS`), tabs with a "Compare with" menu (`show_tabs`), replication-versus-original comparisons (`show_comparison`), and an Altair theme (`chart`). |
-| `research_tools.regressions` | OLS with pyfixest and clustered standard errors (`estimate`), winsorizing (`winsorize`), and regression tables in a paper's layout (`paper_layout`). |
+| `research_tools.regressions` | Winsorizing (`winsorize`), and fitted pyfixest models as a regression table in a paper's layout (`paper_layout`). It runs no regressions: call pyfixest yourself. |
 
 ## Use it in a project
 
@@ -38,6 +38,25 @@ research-tools = { path = "../research-tools", editable = true }
 ```
 
 The repository is private, so each machine that installs it needs git signed in to GitHub (`gh auth login`).
+
+## Regressions
+
+Estimate with pyfixest directly, so every estimate comes from pyfixest, and pass the fitted models to
+`paper_layout`:
+
+```python
+import pyfixest as pf
+from research_tools import regressions
+
+sample = regressions.winsorize(sample, ['roa', 'size'])
+fits = [
+    pf.feols('roa ~ size', data=sample, vcov={'CRV1': 'gvkey + year'}),
+    pf.feols('roa ~ size + lev', data=sample, vcov={'CRV1': 'gvkey + year'}),
+]
+table = regressions.paper_layout(fits, {'size': 'SIZE', 'lev': 'LEV'}, ['(1)', '(2)'])
+```
+
+pyfixest drops rows with a missing model variable on its own; check `fit._N` if the sample size matters.
 
 ## Releasing a version
 
