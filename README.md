@@ -7,7 +7,7 @@ it needs:
 |---|---|
 | `research_tools.wrds_db` | Reads WRDS's PostgreSQL database into Polars over one connection (one two-factor push), with types from the database, in batches written straight to Parquet. `pull_tables(queries, folder)` pulls every missing file, and only connects when one is missing. |
 | `research_tools.tables` | Tables and charts for Quarto documents, in HTML and PDF (Typst): `show(df)`, spanning headers (`'Spanner \| Label'` column names), frozen headers and labels, hover definitions (`DEFINITIONS`), tabs with a "Compare with" menu (`show_tabs`), replication-versus-original comparisons (`show_comparison`), and an Altair theme (`chart`). |
-| `research_tools.regressions` | Winsorizing (`winsorize`), and fitted pyfixest models as a regression table in a paper's layout (`paper_layout`). It runs no regressions: call pyfixest yourself. |
+| `research_tools.helpers` | Small data helpers: `winsorize`, a Polars expression. Regressions and regression tables come from pyfixest directly (see below). |
 
 ## Use it in a project
 
@@ -41,23 +41,33 @@ The repository is private, so each machine that installs it needs git signed in 
 
 ## Regressions
 
-Estimate with pyfixest directly, so every estimate comes from pyfixest, and pass the fitted models to
-`paper_layout`:
+Estimate with pyfixest and make the table with `pf.etable`, so every number and its formatting come from
+pyfixest. This call prints the paper layout: coefficients with stars at 10/5/1%, the t-statistic in brackets
+below, then adjusted R2 and the number of observations:
 
 ```python
 import polars as pl
 import pyfixest as pf
-from research_tools import regressions
+from research_tools.helpers import winsorize
 
-sample = sample.with_columns(pl.col('roa', 'size').pipe(regressions.winsorize, 0.01))
+sample = sample.with_columns(pl.col('roa', 'size').pipe(winsorize, 0.01))
 fits = [
     pf.feols('roa ~ size', data=sample, vcov={'CRV1': 'gvkey + year'}),
     pf.feols('roa ~ size + lev', data=sample, vcov={'CRV1': 'gvkey + year'}),
 ]
-table = regressions.paper_layout(fits, {'size': 'SIZE', 'lev': 'LEV'}, ['(1)', '(2)'])
+pf.etable(
+    fits,
+    coef_fmt='b:.3f*\n(t:.2f)',
+    signif_code=[0.01, 0.05, 0.10],   # pf.etable's default is 0.1/1/5%
+    keep=['size', 'lev'], exact_match=True,   # rows in this order
+    labels={'size': 'SIZE', 'lev': 'LEV', 'roa': 'ROA'},
+    show_fe=False,
+    model_stats=['adj_r2', 'N'],
+)
 ```
 
-pyfixest drops rows with a missing model variable on its own; check `fit._N` if the sample size matters.
+`type='tex'`, `'typst'`, `'md'` or `'df'` gives other outputs. pyfixest drops rows with a missing model
+variable on its own; the table's number of observations shows how many it used.
 
 ## Releasing a version
 
