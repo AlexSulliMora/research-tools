@@ -1,6 +1,6 @@
 """
-Winsorizing. Estimate with pyfixest directly (`pf.feols(...)`) and make regression tables with
-`pf.etable(...)`; see the README for the paper layout.
+Small data helpers shared across projects. Regressions and regression tables come from pyfixest directly
+(`pf.feols`, `pf.etable`); see the README.
 
     winsorize(column, tail)        an expression clipped at its `tail` and 1 - `tail` quantiles
 """

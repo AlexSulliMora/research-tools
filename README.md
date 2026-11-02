@@ -7,7 +7,7 @@ it needs:
 |---|---|
 | `research_tools.wrds_db` | Reads WRDS's PostgreSQL database into Polars over one connection (one two-factor push), with types from the database, in batches written straight to Parquet. `pull_tables(queries, folder)` pulls every missing file, and only connects when one is missing. |
 | `research_tools.tables` | Tables and charts for Quarto documents, in HTML and PDF (Typst): `show(df)`, spanning headers (`'Spanner \| Label'` column names), frozen headers and labels, hover definitions (`DEFINITIONS`), tabs with a "Compare with" menu (`show_tabs`), replication-versus-original comparisons (`show_comparison`), and an Altair theme (`chart`). |
-| `research_tools.regressions` | Winsorizing (`winsorize`). It runs no regressions and makes no regression tables: call `pf.feols` and `pf.etable` yourself. |
+| `research_tools.helpers` | Small data helpers: `winsorize`, a Polars expression. Regressions and regression tables come from pyfixest directly (see below). |
 
 ## Use it in a project
 
@@ -48,9 +48,9 @@ below, then adjusted R2 and the number of observations:
 ```python
 import polars as pl
 import pyfixest as pf
-from research_tools import regressions
+from research_tools.helpers import winsorize
 
-sample = sample.with_columns(pl.col('roa', 'size').pipe(regressions.winsorize, 0.01))
+sample = sample.with_columns(pl.col('roa', 'size').pipe(winsorize, 0.01))
 fits = [
     pf.feols('roa ~ size', data=sample, vcov={'CRV1': 'gvkey + year'}),
     pf.feols('roa ~ size + lev', data=sample, vcov={'CRV1': 'gvkey + year'}),
