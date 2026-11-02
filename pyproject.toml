@@ -1,0 +1,26 @@
+[project]
+name = "research-tools"
+version = "0.1.0"
+description = "WRDS database access, report tables and regression tables shared across research projects"
+authors = [{ name = "Alex Sulli Mora", email = "sullivancas@gmail.com" }]
+requires-python = ">=3.12"
+dependencies = [
+    "polars>=1.44",
+    "pyarrow>=20",
+    "adbc-driver-postgresql>=1.13,<2",
+    "great_tables>=1.1,<2",
+    "altair>=6.2,<7",
+    "vl-convert-python>=1.7",
+    "ipython>=9",
+    "pyfixest>=0.60,<0.61",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/research_tools"]

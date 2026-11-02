@@ -1,0 +1,61 @@
+/* great_tables tables (research_tools.tables.table_html). Tables taller or wider than the window scroll
+   inside their box, with the column headers and the label column frozen in place. */
+.table-scroll {
+  max-height: 85vh;
+  overflow: auto;
+  margin-bottom: 0.5rem;
+  width: fit-content;
+  max-width: 100%;
+}
+.table-scroll > div {          /* great_tables' own box must not scroll, or the frozen parts would not hold */
+  overflow: visible !important;
+  height: auto !important;
+}
+.table-scroll table {
+  margin: 0 !important;
+}
+.table-scroll thead {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+.table-scroll thead th {
+  background: #fff !important;
+}
+.table-scroll .gt_stub, .table-scroll[data-left="1"] thead th.gt_left:first-child {
+  position: sticky !important;   /* !important: great_tables' own styles are tied to the table's id */
+  left: 0;
+  z-index: 2;
+  background: #fff;
+}
+.table-scroll .gt_stub {
+  font-weight: normal;
+}
+.cmp-variant:not([data-cmp="none"]) .gt_col_heading:not(.gt_left) {   /* tab names over compared columns */
+  white-space: nowrap;
+}
+.compare-control {
+  text-align: right;
+  font-size: 0.85rem;
+  margin-bottom: 0.3rem;
+}
+.compare-control select {
+  width: auto;
+  display: inline-block;
+  font-size: 0.85rem;
+  padding: 0.1rem 0.3rem;
+}
+.diff-legend {
+  font-size: 0.75rem;
+  margin: 0.2rem 0 1rem;
+}
+.diff-legend span {
+  padding: 0 0.3rem;
+}
+
+/* Row labels with a definition (research_tools.tables.DEFINITIONS), shown on hover */
+.has-def {
+  text-decoration: underline dotted #9aa;
+  text-underline-offset: 2px;
+  cursor: help;
+}
