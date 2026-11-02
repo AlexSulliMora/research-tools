@@ -2,7 +2,7 @@
 Winsorizing, and pyfixest models as a table in the layout of finance and accounting papers. This module
 estimates nothing: fit each model with pyfixest yourself (`pf.feols(...)`) and pass the fitted models here.
 
-    winsorize(sample, columns)     each column clipped at its 1st and 99th percentiles in the sample
+    winsorize(column, tail)        an expression clipped at its `tail` and 1 - `tail` quantiles
     paper_layout(fits, ...)        fitted pyfixest models as papers print them: a coefficient with stars,
                                    the t-statistic on the row below, then adjusted R2 and Nobs
 """
@@ -15,20 +15,14 @@ MINUS = '−'   # negative numbers are printed with a minus sign, not a hyphen
 STARS = ((0.01, '***'), (0.05, '**'), (0.10, '*'))
 
 
-def winsorize(
-    sample: pl.DataFrame,
-    columns: list[str],
-    lower: float = 0.01,
-    upper: float = 0.99,
-) -> pl.DataFrame:
-    """Each of `columns` clipped at its `lower` and `upper` quantiles in `sample` (linear
-    interpolation), so that values beyond them are set to them."""
-    return sample.with_columns(
-        pl.col(column).clip(
-            pl.col(column).quantile(lower, interpolation='linear'),
-            pl.col(column).quantile(upper, interpolation='linear'),
-        )
-        for column in columns
+def winsorize(column: pl.Expr, tail: float = 0.01) -> pl.Expr:
+    """`column` clipped at its `tail` and 1 - `tail` quantiles (linear interpolation), so that values beyond
+    them are set to them. Use it in a context: `df.with_columns(pl.col('a', 'b').pipe(winsorize, 0.05))`."""
+    if not 0 <= tail < 0.5:
+        raise ValueError(f'tail must be in [0, 0.5), got {tail}')
+    return column.clip(
+        column.quantile(tail, interpolation='linear'),
+        column.quantile(1 - tail, interpolation='linear'),
     )
 
 
